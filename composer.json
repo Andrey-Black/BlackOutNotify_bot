@@ -1,0 +1,15 @@
+{
+    "name": "niceb/black-out-notify_bot",
+    "autoload": {
+        "psr-4": {
+            "Core\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Andrey-Black",
+            "email": "niceblackwinchester@gmail.com"
+        }
+    ],
+    "require": {}
+}
