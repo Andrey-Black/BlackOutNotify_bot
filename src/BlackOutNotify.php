@@ -30,22 +30,34 @@ class BlackOutNotify
 
     $timestamp = $this->getTime();
 
-    $signStr = $this->generateSignString($url, $timestamp, 'GET', $data['access_token'], $data['client_id'], $data['secret']);
+    $sign = $this->generateSign($url, $timestamp, 'GET', $data['client_id'], $data['secret'], $data['access_token']);
 
-    $headers = $this->buildHeaders($data['client_id'], $data['access_token'], $signStr, $timestamp);
+    $headersData = [
+      'client_id' => $data['client_id'],
+      'access_token' => $data['access_token'],
+      'sign' => $sign,
+      't' => $timestamp
+    ];
+
+    $headers = $this->buildCurlHeaders($headersData);
 
     $response = $this->sendCurlRequest($url, $headers);
 
     return $this->fetchJson($response);
   }
 
-  protected function generateSignString($url, $timestamp, $httpMethod, $accessToken, $clientId, $secret): string
+  public function generateSign($url, $timestamp, $httpMethod, $clientId, $secret, $accessToken = null): string
   {
+
     $urlPath = parse_url($url, PHP_URL_PATH);
+
+    if ($accessToken === null) {
+      $urlPath = $urlPath . '?grant_type=1';
+    }
 
     $stringToSign = "$httpMethod\n" . hash('sha256', '') . "\n\n$urlPath";
 
-    $stringToSignForHmac = $clientId . $accessToken . $timestamp . $stringToSign;
+    $stringToSignForHmac = $clientId . ($accessToken ?? '') . $timestamp . $stringToSign;
 
     $hash = hash_hmac('sha256', $stringToSignForHmac, $secret, true);
 
@@ -57,7 +69,7 @@ class BlackOutNotify
     return json_decode(file_get_contents('data.json'), true);
   }
 
-  protected function getTime(): int
+  public function getTime(): int
   {
     return round(microtime(true) * 1000);
   }
@@ -77,19 +89,17 @@ class BlackOutNotify
     return $result;
   }
 
-  public function fetchJson (string $response): array
+  public function fetchJson(string $response): array
   {
     return json_decode($response, true);
   }
 
-  public function searchProperty (array $arr, string $item): array
+  public function searchProperty(array $arr, string $item): array
   {
     $resultArray = $arr['result'];
 
-    foreach($resultArray as $k => $v)
-    {
-      if($k === $item)
-      {
+    foreach ($resultArray as $k => $v) {
+      if ($k === $item) {
         return [$k => $v];
       }
     }
@@ -103,11 +113,11 @@ class BlackOutNotify
     curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false); // Проверка на SSL сертификат
+    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 
     if ($method === 'POST' && !empty($data)) {
       curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
-   }
+    }
 
     $response = curl_exec($curl);
 
@@ -116,7 +126,7 @@ class BlackOutNotify
     return $response;
   }
 
-  protected function notifyTelegram (array $result): void
+  protected function notifyTelegram(array $result): void
   {
     $telegram_bot = new Telegram();
     $telegram_bot->run($result);
@@ -127,15 +137,22 @@ class BlackOutNotify
     return $data['url'] . "/v1.0/devices/{$data['device_id']}";
   }
 
-  protected function buildHeaders(string $clientId, string $accessToken, string $signStr, int $timestamp): array
+  public function buildCurlHeaders(array $data): array
   {
-    return [
-        "client_id: " . $clientId,
-        "access_token: " . $accessToken,
-        "sign: " . $signStr,
-        "t: " . $timestamp,
-        "sign_method: HMAC-SHA256"
+    $defaultHeaders = [
+      "sign_method" => "HMAC-SHA256"
     ];
-  }
 
+    $allHeaders = array_merge($defaultHeaders, $data);
+
+    $formattedHeaders = [];
+
+    foreach ($allHeaders as $key => $value) {
+      if (!is_null($value)) {
+        $formattedHeaders[] = "$key: $value";
+      }
+    }
+
+    return $formattedHeaders;
+  }
 }

@@ -4,60 +4,74 @@ namespace Core;
 
 class Telegram
 {
-
-  protected BlackOutNotify $fetchStatus;
+  protected BlackOutNotify $BlackOutNotify;
 
   public function __construct()
   {
-    $this->fetchStatus = new BlackOutNotify();
+    $this->BlackOutNotify = new BlackOutNotify();
   }
 
-  public function run (array $result): void
+  public function run(array $result): void
   {
-    $this->CheckStatus($result);
-    $this->sendTelegramMessage();
+    if ($this->CheckStatus($result)) {
+      $this->sendTelegramMessage();
+    }
   }
 
-  protected function CheckStatus (array $newStatus): bool
+  protected function CheckStatus(array $status): bool
   {
+    $currentStatus = $this->getCurrentStatus();
 
-    $currentStatus = $this->fetchStatus->extractData('status', ['online']);
-
-    if($newStatus['online'] === $currentStatus['online'])
-    {
-      exit('<h2>STATUS SAME</h2>');
-    }
-    else
-    {
-      $currentJsonData = $this->fetchStatus->loadJsonData();
-
-      $currentJsonData['status']['online'] = $newStatus['online'];
-
-      $newJsonData = json_encode($currentJsonData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-
-      file_put_contents('data.json', $newJsonData);
-
-      echo '<h2>UPDATE STATUS</h2>';
-
-      return true;
+    if ($this->isStatusSame($status['online'], $currentStatus['online'])) {
+      $this->handleSameStatus();
+      return false;
     }
 
+    $this->updateStatus($status);
+    echo '<h2>UPDATE STATUS</h2>';
+    return true;
+  }
+
+  protected function getCurrentStatus(): array
+  {
+    return $this->BlackOutNotify->extractData('status', ['online']);
+  }
+  protected function isStatusSame($newStatus, $oldStatus): bool
+  {
+    return $newStatus === $oldStatus;
+  }
+
+  protected function handleSameStatus(): void
+  {
+    exit('<h2>STATUS SAME</h2>');
+  }
+  protected function updateStatus(array $status): void
+  {
+    $currentJsonData = $this->BlackOutNotify->loadJsonData();
+    $currentJsonData['status']['online'] = $status['online'];
+
+    $newJsonData = $this->json_encode($currentJsonData);
+    file_put_contents('data.json', $newJsonData);
   }
 
   protected function sendTelegramMessage(): void
   {
-    $arr = $this->fetchStatus->extractData('telegram', ['bot_token', 'chat_id']);
+    $arr = $this->BlackOutNotify->extractData('telegram', ['bot_token', 'chat_id']);
 
     $url = "https://api.telegram.org/bot{$arr['bot_token']}/sendMessage";
 
     $postData = [
       'chat_id' => $arr['chat_id'],
       'text' => 'Привет я BlackOutNotify_bot'
-  ];
+    ];
 
-    $response = $this->fetchStatus->sendCurlRequest($url, [], 'POST', $postData);
+    $response = $this->BlackOutNotify->sendCurlRequest($url, [], 'POST', $postData);
 
-    echo $response;
+    echo '<h3>' . $response . '</h3>';
   }
 
+  public function json_encode(array $data): string
+  {
+    return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+  }
 }
