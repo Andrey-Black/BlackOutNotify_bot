@@ -1,0 +1,1 @@
+* * * * * root /usr/local/bin/php /var/www/html/index.php >> /var/www/html/cron_log_output.log 2>&1

@@ -1,16 +1,13 @@
 {
-    "access_data": {
+    "data_json": {
         "url": "https:\/\/openapi.tuyaeu.com",
-        "client_id": "12345",
-        "secret": "12345",
-        "device_id": "12345",
-        "access_token": "a2d22d58bdae1aa1bafbc4ee4d54eab9"
-    },
-    "status": {
-        "online": true
-    },
-    "telegram": {
-        "bot_token": "12345",
-        "chat_id": 12345
+        "client_id": "cfcc7jqmy45at34q3qe8",
+        "secret": "d9860d7841a74d29923ece4628bc5ff1",
+        "device_id": "bfe6b1e8a9a1fdf4c1wktn",
+        "access_token": "db196bf685f08cdd3e805a12c93a0040",
+        "update_token_timestamp": 1725573359007,
+        "online": false,
+        "chat_id": 1441040617,
+        "bot_token": "7018246816:AAG8mHy1oJakIOID5FiQ8kSRSGJy-3V07qc"
     }
 }
