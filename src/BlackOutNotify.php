@@ -2,45 +2,42 @@
 
 namespace Core;
 
-use Core\Telegram;
-
 class BlackOutNotify
 {
+  protected $notifier;
 
-  public static function run(): void
+  public function __construct($notifier)
   {
-    $instance = new self();
+    $this->notifier = $notifier;
+  }
+
+  public static function run($notifier): void
+  {
+    $instance = new self($notifier);
+
     $instance->handleDeviceStatus();
   }
 
   protected function handleDeviceStatus(): void
   {
     $deviceData = $this->fetchDeviceStatus();
-
     $result = $this->searchProperty($deviceData, 'online');
+    $this->CheckStatus($result);
+  }
 
-    $this->notifyTelegram($result);
+  protected function CheckStatus(array $result): void
+  {
+    $this->notifier->run($result);
   }
 
   protected function fetchDeviceStatus(): array
   {
-    $data = $this->extractData('access_data', ['url', 'client_id', 'device_id', 'secret', 'access_token']);
-
+    $data = $this->extractData('data_json', ['url', 'client_id', 'device_id', 'secret', 'access_token']);
     $url = $this->buildDeviceUrl($data);
-
     $timestamp = $this->getTime();
-
     $sign = $this->generateSign($url, $timestamp, 'GET', $data['client_id'], $data['secret'], $data['access_token']);
-
-    $headersData = [
-      'client_id' => $data['client_id'],
-      'access_token' => $data['access_token'],
-      'sign' => $sign,
-      't' => $timestamp
-    ];
-
+    $headersData = ['client_id' => $data['client_id'], 'access_token' => $data['access_token'], 'sign' => $sign, 't' => $timestamp];
     $headers = $this->buildCurlHeaders($headersData);
-
     $response = $this->sendCurlRequest($url, $headers);
 
     return $this->fetchJson($response);
@@ -48,17 +45,15 @@ class BlackOutNotify
 
   public function generateSign($url, $timestamp, $httpMethod, $clientId, $secret, $accessToken = null): string
   {
-
     $urlPath = parse_url($url, PHP_URL_PATH);
 
-    if ($accessToken === null) {
+    if ($accessToken === null) 
+    {
       $urlPath = $urlPath . '?grant_type=1';
     }
 
     $stringToSign = "$httpMethod\n" . hash('sha256', '') . "\n\n$urlPath";
-
     $stringToSignForHmac = $clientId . ($accessToken ?? '') . $timestamp . $stringToSign;
-
     $hash = hash_hmac('sha256', $stringToSignForHmac, $secret, true);
 
     return strtoupper(bin2hex($hash));
@@ -80,8 +75,10 @@ class BlackOutNotify
     $accessData = $data[$object];
     $result = [];
 
-    foreach ($keys as $key) {
-      if (isset($accessData[$key])) {
+    foreach ($keys as $key) 
+    {
+      if (isset($accessData[$key])) 
+      {
         $result[$key] = $accessData[$key];
       }
     }
@@ -99,7 +96,8 @@ class BlackOutNotify
     $resultArray = $arr['result'];
 
     foreach ($resultArray as $k => $v) {
-      if ($k === $item) {
+      if ($k === $item) 
+      {
         return [$k => $v];
       }
     }
@@ -115,21 +113,15 @@ class BlackOutNotify
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
 
-    if ($method === 'POST' && !empty($data)) {
+    if ($method === 'POST' && !empty($data)) 
+    {
       curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
     }
 
     $response = curl_exec($curl);
-
     curl_close($curl);
 
     return $response;
-  }
-
-  protected function notifyTelegram(array $result): void
-  {
-    $telegram_bot = new Telegram();
-    $telegram_bot->run($result);
   }
 
   private function buildDeviceUrl(array $data): string
@@ -139,16 +131,15 @@ class BlackOutNotify
 
   public function buildCurlHeaders(array $data): array
   {
-    $defaultHeaders = [
-      "sign_method" => "HMAC-SHA256"
-    ];
+    $defaultHeaders = ["sign_method" => "HMAC-SHA256"];
 
     $allHeaders = array_merge($defaultHeaders, $data);
-
     $formattedHeaders = [];
 
-    foreach ($allHeaders as $key => $value) {
-      if (!is_null($value)) {
+    foreach ($allHeaders as $key => $value) 
+    {
+      if (!is_null($value)) 
+      {
         $formattedHeaders[] = "$key: $value";
       }
     }

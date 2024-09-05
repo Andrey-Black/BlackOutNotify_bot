@@ -5,59 +5,75 @@ namespace Core;
 class GetAccessToken
 {
 
-  protected $BlackOutNotify;
-  protected $Telegram;
+  protected BlackOutNotify $blackOutNotify;
+  protected Telegram $telegram;
 
-  public function __construct()
+  public function __construct(BlackOutNotify $blackOutNotify, Telegram $telegram)
   {
-    $this->BlackOutNotify = new BlackOutNotify();
-    $this->Telegram = new Telegram();
+    $this->blackOutNotify = $blackOutNotify;
+    $this->telegram = $telegram;
   }
 
-  public static function run(): void
+  public static function run(BlackOutNotify $blackOutNotify, Telegram $telegram): void
   {
-    if (self::compareTime()) {
-      $instance = new self();
-      $instance->getNewAccessToken();
-    }
+      $instance = new self($blackOutNotify, $telegram);
+
+      if ($instance->compareTime()) {
+        $instance->getNewAccessToken();
+      }
   }
 
-  protected static function compareTime()
+  protected function compareTime(): bool
   {
+    $extractData = $this->blackOutNotify->extractData('data_json', ['update_token_timestamp']);
+
+    $oldTimestamp = reset($extractData);
+    $newTimestamp = $this->blackOutNotify->getTime();
+
+    // Интервал, который нужно проверить (1 час 50 минут в миллисекундах)
+    $intervalToCheck = (1 * 60 * 60 * 1000) + (50 * 60 * 1000);
+
+    $timeDifference = abs($newTimestamp - $oldTimestamp);
+
+    if($timeDifference < $intervalToCheck) return false;
+
     return true;
   }
 
   public function getNewAccessToken()
   {
+    $data = $this->blackOutNotify->extractData('data_json', ['url', 'client_id', 'device_id', 'secret']);
 
-    $data = $this->BlackOutNotify->extractData('access_data', ['url', 'client_id', 'device_id', 'secret']);
-
-    $timestamp = $this->BlackOutNotify->getTime();
+    $timestamp = $this->blackOutNotify->getTime();
 
     $url = $this->buildTokenUrl($data);
 
-    $sign = $this->BlackOutNotify->generateSign($url, $timestamp, 'GET', $data['client_id'], $data['secret'], null);
+    $sign = $this->blackOutNotify->generateSign($url, $timestamp, 'GET', $data['client_id'], $data['secret'], null);
 
-    $data =
-      [
-        'client_id' => $data['client_id'],
-        'sign' => $sign,
-        't' => $timestamp
-      ];
+    $data =['client_id' => $data['client_id'], 'sign' => $sign, 't' => $timestamp];
 
-    $headers = $this->BlackOutNotify->buildCurlHeaders($data);
+    $headers = $this->blackOutNotify->buildCurlHeaders($data);
 
-    $response = $this->BlackOutNotify->sendCurlRequest($url, $headers);
+    $response = $this->blackOutNotify->sendCurlRequest($url, $headers);
 
-    $result = $this->BlackOutNotify->fetchJson($response);
+    $result = $this->blackOutNotify->fetchJson($response);
 
-    $currentJsonData = $this->BlackOutNotify->loadJsonData();
+    $newArr = $this->updateDataJson($result);
 
-    $currentJsonData['access_data']['access_token'] = $result['result']['access_token'];
-
-    $newJsonData = $this->Telegram->json_encode($currentJsonData);
+    $newJsonData = $this->telegram->json_encode($newArr);
 
     file_put_contents('data.json', $newJsonData);
+  }
+
+  private function updateDataJson (array $arr): array
+  {
+
+    $data = $this->blackOutNotify->loadJsonData();
+
+    $data['data_json']['access_token'] = $arr['result']['access_token'];
+    $data['data_json']['update_token_timestamp'] = $arr['t'];
+
+    return $data;
   }
 
   private function buildTokenUrl(array $data): string
