@@ -1,1 +1,2 @@
-* * * * * root /usr/local/bin/php /var/www/html/index.php >> /var/www/html/cron_log_output.log 2>&1
+* * * * * cd /var/www/html && /usr/local/bin/php /var/www/html/index.php >> /var/www/html/cron_log_output.log 2>&1
+* * * * * echo "Cron is running at $(date)" >> /var/www/html/test_cron.log 2>&1

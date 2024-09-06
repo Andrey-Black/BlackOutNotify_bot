@@ -5,9 +5,17 @@ services:
     ports:
       - "8000:80"
     container_name: cron
+    volumes:
+      - .:/var/www/html
+    user: root
+    privileged: true
     depends_on:
       - php
 
   php:
     image: php:8.3-fpm
     container_name: php
+    volumes:
+      - .:/var/www/html
+    user: root
+    privileged: true
