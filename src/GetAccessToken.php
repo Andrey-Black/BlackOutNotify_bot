@@ -2,21 +2,21 @@
 
 namespace Core;
 
+use RuntimeException;
+
 class GetAccessToken
 {
 
   protected BlackOutNotify $blackOutNotify;
-  protected Telegram $telegram;
 
-  public function __construct(BlackOutNotify $blackOutNotify, Telegram $telegram)
+  public function __construct(BlackOutNotify $blackOutNotify)
   {
     $this->blackOutNotify = $blackOutNotify;
-    $this->telegram = $telegram;
   }
 
-  public static function run(BlackOutNotify $blackOutNotify, Telegram $telegram): void
+  public static function run(BlackOutNotify $blackOutNotify): void
   {
-      $instance = new self($blackOutNotify, $telegram);
+      $instance = new self($blackOutNotify);
 
       if ($instance->compareTime()) {
         $instance->getNewAccessToken();
@@ -27,51 +27,52 @@ class GetAccessToken
   {
     $extractData = $this->blackOutNotify->extractData('data_json', ['update_token_timestamp']);
 
-    $oldTimestamp = reset($extractData);
+    $oldTimestamp = (int)($extractData['update_token_timestamp'] ?? 0);
     $newTimestamp = $this->blackOutNotify->getTime();
 
-    // Интервал, который нужно проверить (1 час 50 минут в миллисекундах)
+    if ($oldTimestamp <= 0) {
+      return true;
+    }
+
     $intervalToCheck = (1 * 60 * 60 * 1000) + (50 * 60 * 1000);
+    $timeDifference = $newTimestamp - $oldTimestamp;
 
-    $timeDifference = abs($newTimestamp - $oldTimestamp);
-
-    if($timeDifference < $intervalToCheck) return false;
-
-    return true;
+    return $timeDifference >= $intervalToCheck;
   }
 
-  public function getNewAccessToken()
+  public function getNewAccessToken(): void
   {
-    $data = $this->blackOutNotify->extractData('data_json', ['url', 'client_id', 'device_id', 'secret']);
+    $data = $this->blackOutNotify->extractConfigData('data_json', ['url', 'client_id', 'secret']);
 
     $timestamp = $this->blackOutNotify->getTime();
-
     $url = $this->buildTokenUrl($data);
-
     $sign = $this->blackOutNotify->generateSign($url, $timestamp, 'GET', $data['client_id'], $data['secret'], null);
-
-    $data =['client_id' => $data['client_id'], 'sign' => $sign, 't' => $timestamp];
-
-    $headers = $this->blackOutNotify->buildCurlHeaders($data);
-
+    $headersData = ['client_id' => $data['client_id'], 'sign' => $sign, 't' => $timestamp];
+    $headers = $this->blackOutNotify->buildCurlHeaders($headersData);
     $response = $this->blackOutNotify->sendCurlRequest($url, $headers);
-
     $result = $this->blackOutNotify->fetchJson($response);
-
     $newArr = $this->updateDataJson($result);
-
-    $newJsonData = $this->telegram->json_encode($newArr);
-
-    file_put_contents('data.json', $newJsonData);
+    $this->blackOutNotify->saveJsonData($newArr);
   }
 
-  private function updateDataJson (array $arr): array
+  private function updateDataJson(array $arr): array
   {
+    if (!isset($arr['result']) || !is_array($arr['result']) || !isset($arr['result']['access_token'])) {
+      throw new RuntimeException('Access token response does not contain result.access_token.');
+    }
+
+    if (!isset($arr['t'])) {
+      throw new RuntimeException('Access token response does not contain timestamp field "t".');
+    }
 
     $data = $this->blackOutNotify->loadJsonData();
 
-    $data['data_json']['access_token'] = $arr['result']['access_token'];
-    $data['data_json']['update_token_timestamp'] = $arr['t'];
+    if (!isset($data['data_json']) || !is_array($data['data_json'])) {
+      throw new RuntimeException('Missing "data_json" object in data.json.');
+    }
+
+    $data['data_json']['access_token'] = (string)$arr['result']['access_token'];
+    $data['data_json']['update_token_timestamp'] = (int)$arr['t'];
 
     return $data;
   }

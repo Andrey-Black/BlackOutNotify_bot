@@ -2,6 +2,8 @@
 
 namespace Core;
 
+use RuntimeException;
+
 class Telegram
 {
   protected BlackOutNotify $blackOutNotify;
@@ -21,9 +23,13 @@ class Telegram
 
   private function CheckStatus(array $status): bool
   {
+    if (!array_key_exists('online', $status)) {
+      throw new RuntimeException('Missing "online" status in notifier payload.');
+    }
+
     $currentStatus = $this->getCurrentStatus();
 
-    if ($this->isStatusSame($status['online'], $currentStatus['online'])) 
+    if (array_key_exists('online', $currentStatus) && $this->isStatusSame($status['online'], $currentStatus['online'])) 
     {
       return false;
     }
@@ -47,13 +53,12 @@ class Telegram
     $currentJsonData = $this->blackOutNotify->loadJsonData();
     $currentJsonData['data_json']['online'] = $status['online'];
 
-    $newJsonData = $this->json_encode($currentJsonData);
-    file_put_contents('data.json', $newJsonData);
+    $this->blackOutNotify->saveJsonData($currentJsonData);
   }
 
   protected function sendTelegramMessage(): void
   {
-    $arr = $this->blackOutNotify->extractData('data_json', ['bot_token', 'chat_id']);
+    $arr = $this->blackOutNotify->extractConfigData('data_json', ['bot_token', 'chat_id']);
     $url = $this->UrlSendMessage($arr['bot_token']);
     $message = $this->formatMessage();
     $postData = ['chat_id' => $arr['chat_id'], 'text' => $message];
@@ -61,17 +66,12 @@ class Telegram
     $this->blackOutNotify->sendCurlRequest($url, [], 'POST', $postData);
   }
 
-  public function json_encode(array $data): string
-  {
-    return json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-  }
-
   private function formatMessage(): string
   {
     $status = $this->blackOutNotify->extractData('data_json', ['online']);
-    $status = reset($status);
+    $isOnline = (bool)($status['online'] ?? false);
 
-    if ($status) 
+    if ($isOnline) 
     {
       return '🔋⚡ Відновлення електропостачання ' . '🕘 ' . date('H:i');
     } else 
